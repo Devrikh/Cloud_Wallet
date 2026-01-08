@@ -1,11 +1,21 @@
 const express = require("express");
 const { userModel } = require("./models");
-const { Keypair, PublicKey } = require("@solana/web3.js");
+const { Keypair, PublicKey, Transaction, Connection } = require("@solana/web3.js");
 const jwt = require("jsonwebtoken");
+const bs58= require("bs58")
+const cors= require("cors");
 
 
 const app = express();
 require("dotenv").config();
+app.use(cors())
+app.use(express.json());
+
+
+
+
+const connection=new Connection("https://api.devnet.solana.com");
+
 
 app.post("/api/v1/signup", async (req, res) => {
   const { username, password } = req.body;
@@ -41,7 +51,7 @@ app.post("/api/v1/signin",  async(req, res) => {
     },process.env.JWT_SECRET)
     
   res.json({
-    token: jwt,
+    token: token,
   });
 
   }else{
@@ -52,13 +62,35 @@ app.post("/api/v1/signin",  async(req, res) => {
 
 });
 
-app.post("/api/v1/txn/sign", (req, res) => {
+app.post("/api/v1/txn/sign",async (req, res) => {
+  const serialisedTx= req.body.message
+   const payload=jwt.decode(req.headers.token, process.env.JWT_SECRET);
+
+  const tx= Transaction.from(Buffer.from(serialisedTx));
+ 
+  
+  const user=await userModel.findOne({
+      _id:payload.id
+  })
+
+  
+  const keyPair= Keypair.fromSecretKey(bs58.default.decode(user.privateKey))
+  // const keyPair= Keypair.fromSecretKey(bs58.default.decode())
+  const {blockhash}= await connection.getLatestBlockhash();
+    tx.recentBlockhash=blockhash;
+    tx.feePayer=keyPair.publicKey;
+
+  tx.sign(keyPair)
+
+  const signature= await connection.sendTransaction(tx, [keyPair]);
+  console.log(signature);
+
   res.json({
-    message: "Signature",
+    message: signature,
   });
 });
 
-app.get("/api/v1/txn/?id=id", (req, res) => {
+app.get("/api/v1/txn/id", (req, res) => {
   res.json({
     message: "txn status",
   });

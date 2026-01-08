@@ -1,33 +1,48 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
 import './App.css'
+import {Transaction,SystemProgram, PublicKey, LAMPORTS_PER_SOL, Connection} from "@solana/web3.js"
+import axios from "axios"
+
+const fromPubKey= new PublicKey("6ayDk6MGzSXT3AfD7NyEfmuM9rebWVs8L2pLAVKmgHqP");
+
+const connection= new Connection("https://api.devnet.solana.com")
+
+
 
 function App() {
-  const [count, setCount] = useState(0)
+
+  async function sendSol(){
+
+    const ix= SystemProgram.transfer({
+      fromPubkey: fromPubKey ,
+      toPubkey: new PublicKey("9k8Wek7nE7LsTZtkFX9uwTgdmndxEYpzWgCmBDXL5fXc"),
+      lamports: 0.001 * LAMPORTS_PER_SOL
+    })
+    const tx= new Transaction().add(ix);
+
+    const {blockhash}= await connection.getLatestBlockhash();
+    tx.recentBlockhash=blockhash;
+    tx.feePayer=fromPubKey;
+
+    //comvert txn to bytes , BE doesnt know shit about class and structure of tx
+    const serializedTx= tx.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false
+    });
+
+    console.log(serializedTx)
+
+    await axios.post("http://localhost:3000/api/v1/txn/sign",{
+      message: serializedTx,
+      retry: false
+    })
+
+  }
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+    <input type="text" placeholder='Amount' />
+    <input type="text" placeholder='Address' />
+    <button onClick={sendSol}>Transfer</button>
     </>
   )
 }
